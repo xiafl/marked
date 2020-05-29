@@ -118,14 +118,25 @@ module.exports = class Tokenizer {
     }
   }
 
+  selfMark(src) {
+    const cap = this.rules.block.selfMark.exec(src);
+    if (cap) {
+      return {
+        type: 'selfMark',
+        raw: cap[0],      // '@@ collpase=true'
+        text: cap[2]      // 'collpase=true'
+      };
+    }
+  }
+
   heading(src) {
     const cap = this.rules.block.heading.exec(src);
     if (cap) {
       return {
         type: 'heading',
-        raw: cap[0],
+        raw: cap[0],      // '## 这是标题\n'
         depth: cap[1].length,
-        text: cap[2]
+        text: cap[2]      // '这是标题'
       };
     }
   }

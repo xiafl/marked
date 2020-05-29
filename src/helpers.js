@@ -29,6 +29,13 @@ function escape(html, encode) {
 
 const unescapeTest = /&(#(?:\d+)|(?:#x[0-9A-Fa-f]+)|(?:\w+));?/ig;
 
+/**
+ * 
+ * @example
+ * unescape('&lt'); ==> 'lt'
+ * unescape('&quot;') ==> 'quot'
+ * unescape('&#39;') ==> "'"
+ */
 function unescape(html) {
   // explicitly match decimal, hex, and named HTML entities
   return html.replace(unescapeTest, (_, n) => {
@@ -43,14 +50,20 @@ function unescape(html) {
   });
 }
 
-const caret = /(^|[^\[])\^/g;
-function edit(regex, opt) {
+const caret = /(^|[^\[])\^/g; // 以^开头的字符，非[^ 
+
+/**
+ * 修改正则表达式 就是将 正则 regex 当作一个字符串，进行修改，最终得到另一个正则
+ * @example
+ * 1. edit(/aabb/ig, 'g').replace(/ab/g, '^a^cccb^').getRegex(); ==> /aacccbb/g
+ */
+function edit(regex, opt) {   
   regex = regex.source || regex;
   opt = opt || '';
   const obj = {
     replace: (name, val) => {
       val = val.source || val;
-      val = val.replace(caret, '$1');
+      val = val.replace(caret, '$1'); // 去掉 ^ 符号的作用
       regex = regex.replace(name, val);
       return obj;
     },
@@ -81,7 +94,7 @@ function cleanUrl(sanitize, base, href) {
     href = resolveUrl(base, href);
   }
   try {
-    href = encodeURI(href).replace(/%25/g, '%');
+    href = encodeURI(href).replace(/%25/g, '%'); // % 会被encodeURI编码为 %25
   } catch (e) {
     return null;
   }
@@ -89,41 +102,92 @@ function cleanUrl(sanitize, base, href) {
 }
 
 const baseUrls = {};
+
+/**
+ * 正则描述: 如果url中不包含路径部分(没有/)，则满足
+ * 符合正则的示例:
+ * 1. 'a:'
+ * 2. 'a:////ndkiediid.js'
+ * 3. 'a:/ndk&=ie()[]?#diid'
+ * 4. 'a:ndkiediid'
+ * 
+ * 不符合正则的示例:
+ * 1. ':////ndkiediid'
+ * 2. 'a://ndkie/diid'
+ */
 const justDomain = /^[^:]+:\/*[^/]*$/;
+
+
+/**
+ * 正则描述: 从左侧开始直到遇到的第一个:, 本质上就是提取协议部分
+ * 符合正则的情况: 
+ * 1. 'http://www.baidu.com/aa/bb/cc.js?uu=uu#kk' ==> 'http:'
+ * 2. 'a[]/abc?&.js:;::uundkie/diid' ==> $1='a[]/abc?&.js:'
+ */
 const protocol = /^([^:]+:)[\s\S]*$/;
+
+/**
+ * 正则描述: 将url中的前面不包括路径的部分提取出来
+ * 符合正则的情况:
+ * 1. 'http://www.baidu.com/aa/bb/cc.js?uu=uu#kk' ==> $1='http://www.baidu.com'
+ */
 const domain = /^([^:]+:\/*[^/]*)[\s\S]*$/;
 
+/**
+ * 将base进行转换，结果base1形式一定是: '' 或 aaa://www.baidu.com/ 或 任意的字符/bb/cc/
+ * 如果base1中不包含:
+ *    1. 如果href以//开头，或以/开头，直接返回 href
+ *    2. 否则返回base1
+ * 如果base1中包含:
+ *    1. 如果href以//开头，则返回 base1中的协议+href
+ *    2. 如果href以/开头，则返回 base1中的非路径部分(域名)+href
+ *    3. 否则，返回 base1+href
+ * @example
+ * 1. resolveUrl('aa:bb:cc', 'kkkk'); ==> 'aa:bb:cc/kkkk'
+ * 2. resolveUrl('aa:bb:cc/dd/eee', 'kkkk'); ==> 'aa:bb:cc/dd/kkkk'
+ * 2. resolveUrl('aa:bb:cc', '//uu/kk'); ==> 'aa://uu/kk'
+ * 2. resolveUrl('aa:bb:cc', '/uu/kk'); ==> 'aa:bb:cc/uu/kk'
+ * 2. resolveUrl('aa:bb:cc/dd/eee', '//uu/kk'); ==> 'aa://uu/kk'
+ * 2. resolveUrl('aa:bb:cc/dd/eee', '/uu/kk'); ==> 'aa:bb:cc/uu/kk'
+ * 2. resolveUrl('dkddid', '/uu/kk'); ==> '/uu/kk'
+ * 2. resolveUrl('aaaa/bbbb/ccccc', '/uu/kk'); ==> '/uu/kk'
+ */
 function resolveUrl(base, href) {
   if (!baseUrls[' ' + base]) {
     // we can ignore everything in base after the last slash of its path component,
     // but we might need to add _that_
     // https://tools.ietf.org/html/rfc3986#section-3
-    if (justDomain.test(base)) {
+    if (justDomain.test(base)) { // 如果base中不包含路径，则在末尾拼接一个 / 
       baseUrls[' ' + base] = base + '/';
     } else {
-      baseUrls[' ' + base] = rtrim(base, '/', true);
+      baseUrls[' ' + base] = rtrim(base, '/', true); // 从末尾向前方向依次去掉非/，直到遇到一个/为止
     }
   }
-  base = baseUrls[' ' + base];
+  base = baseUrls[' ' + base]; // base现在的值的形式一定是: '' 或 aaa://www.baidu.com/ 或 任意的字符/bb/cc/
   const relativeBase = base.indexOf(':') === -1;
 
   if (href.substring(0, 2) === '//') {
-    if (relativeBase) {
+    if (relativeBase) { // 如果base中不含有:
       return href;
     }
-    return base.replace(protocol, '$1') + href;
+    return base.replace(protocol, '$1') + href; // 提取出base中的协议部分，拼接到 href 前面
   } else if (href.charAt(0) === '/') {
     if (relativeBase) {
       return href;
     }
-    return base.replace(domain, '$1') + href;
+    return base.replace(domain, '$1') + href; // 提取出base中的非路径部分，拼接到 href 前面
   } else {
-    return base + href;
+    return base + href;  // 两者直接拼接
   }
 }
 
 const noopTest = { exec: function noopTest() {} };
 
+/**
+ * 
+ * @example
+ * 1. merge({}, {a: 3, b: 4}, {e: 5}); ==> {a:3,b:4,e:5}
+ */
 function merge(obj) {
   let i = 1,
     target,
@@ -141,6 +205,15 @@ function merge(obj) {
   return obj;
 }
 
+/**
+ * @example
+ * 1. splitCells('aaa | bbb | ccc'); ==> ['aaa', 'bbb', 'ccc']
+ * 2. splitCells('aaa | bb\|b | ccc'); ==> ['aaa', 'bb|b', 'ccc']
+ * 2. splitCells('aaa | bb\\|b | ccc'); ==> ['aaa', 'bb\', 'b', 'ccc']
+ * 2. splitCells('aaa | bb\\|b | ccc'); ==> ['aaa', 'bb\', 'b', 'ccc']
+ * 2. splitCells('aaa | bb\\|b | ccc', 2); ==> ['aaa', 'bb\']
+ * 2. splitCells('aaa | bb\\|b | ccc', 5); ==> ['aaa', 'bb\', 'b', 'ccc', '']
+ */
 function splitCells(tableRow, count) {
   // ensure that every cell-delimiting pipe has a space
   // before it to distinguish it from an escaped pipe
@@ -156,8 +229,8 @@ function splitCells(tableRow, count) {
         // add space before unescaped |
         return ' |';
       }
-    }),
-    cells = row.split(/ \|/);
+  }),
+  cells = row.split(/ \|/);
   let i = 0;
 
   if (cells.length > count) {
@@ -173,6 +246,14 @@ function splitCells(tableRow, count) {
   return cells;
 }
 
+/**
+ * 
+ * @example
+ * 1. rtrim('abcddd', 'd'); ==> 'abc'
+ * 2. rtrim('abcddd', 'e'); ==> 'abcddd'
+ * 3. rtrim('abcddd', 'e', true); ==> ''
+ * 4. rtrim('abcddd', 'd', true); ==> 'abcddd'
+ */
 // Remove trailing 'c's. Equivalent to str.replace(/c*$/, '').
 // /c*$/ is vulnerable to REDOS.
 // invert: Remove suffix of non-c chars instead. Default falsey.
@@ -200,6 +281,14 @@ function rtrim(str, c, invert) {
   return str.substr(0, l - suffLen);
 }
 
+/**
+ * 
+ * @example
+ * 1. findClosingBracket('(ab(cd)(ef)gh)bb(bb)', ['(', ')']); ==> 13
+ * 1. findClosingBracket('(ab(cd)(ef)gh', ['(', ')']); ==> -1
+ * 1. findClosingBracket('((bb(cc', ['(', ')']); ==> -1
+ * 1. findClosingBracket('((bb(cc))))))', ['(', ')']); ==> 9
+ */
 function findClosingBracket(str, b) {
   if (str.indexOf(b[1]) === -1) {
     return -1;

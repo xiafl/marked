@@ -62,6 +62,14 @@ module.exports = class Parser {
           out += this.renderer.hr();
           continue;
         }
+        case 'selfMark': {
+          out += this.renderer.selfMark(
+            token.text,
+            unescape( token.raw ),
+            tokens[i+1]
+            );
+          continue;
+        }
         case 'heading': {
           out += this.renderer.heading(
             this.parseInline(token.tokens),

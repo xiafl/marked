@@ -44,6 +44,29 @@ module.exports = class Renderer {
     return html;
   }
 
+  selfMark(text, raw, nextToken){
+    text = text.toLowerCase();
+    let arr = text.trim().split(/ *= */);
+    if(!arr){
+      return raw;
+    }
+    if(!nextToken || nextToken.type !== 'code'){
+      return raw;
+    }
+
+    let result = '';
+    for(let i=0; i<arr.length; i+=2){
+      let type = arr[i], val = arr[i+1];
+      if(type === 'collpase'){
+        result += `<div class="${type}">${val === 'true' ? '收起' : '展开'}</div>`;
+      }else if(type === 'filename'){
+        result += `<div class="${type}">${val}</div>`;
+      }
+    }
+    
+    return result || raw;
+  }
+
   heading(text, level, raw, slugger) {
     if (this.options.headerIds) {
       return '<h'
